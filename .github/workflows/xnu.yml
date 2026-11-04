@@ -1,0 +1,89 @@
+name: xnu-tulip
+
+on:
+  workflow_dispatch:
+    inputs:
+      macos_version:
+        description: macOS release whose xnu to build (13.5 = xnu-8796, iOS 16 era)
+        default: "13.5"
+      kernel_config:
+        description: RELEASE / DEVELOPMENT / DEBUG
+        default: DEVELOPMENT
+  push:
+    branches: [tulip]
+    paths:
+      - ".github/workflows/xnu.yml"
+
+concurrency:
+  group: xnu-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DXB_REPO: https://github.com/blacktop/darwin-xnu-build
+  DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
+  MACOS_VERSION: ${{ inputs.macos_version || '13.5' }}
+  KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
+  MACHINE_CONFIG: TULIP
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch build script
+        run: |
+          git init -q dxb
+          git -C dxb fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
+          git -C dxb checkout -q FETCH_HEAD
+          # libfirehose_kernel is built arm64e-only; the TULIP kernel is plain arm64
+          sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="x86_64 arm64e arm64" VALID_ARCHS="x86_64 arm64e arm64"/' dxb/build.sh
+          grep -c 'VALID_ARCHS="x86_64 arm64e arm64"' dxb/build.sh
+
+      - name: Deps
+        run: |
+          brew install jq gum bash cmake ninja
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
+          sudo chmod +x /usr/local/bin/xcodes
+          sw_vers
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Build kernel
+        working-directory: dxb
+        env:
+          XNU_REPO: ${{ github.server_url }}/${{ github.repository }}
+          XNU_BRANCH: ${{ github.ref_name }}
+          XNU_COMMIT: ${{ github.sha }}
+          MACOS_VERSION: ${{ env.MACOS_VERSION }}
+          KERNEL_CONFIGS: ${{ env.KERNEL_CONFIG }}
+          MACHINE_CONFIGS: ${{ env.MACHINE_CONFIG }}
+          # keep going after errors so one run reports every compile failure
+          MAKEFLAGS: -k
+        run: |
+          set -o pipefail
+          bash build.sh 2>&1 | tee ../build.log
+
+      - name: Compile errors
+        if: failure()
+        run: |
+          grep -c -E ' error:' build.log || true
+          grep -n -B4 -A8 -E ' error:' build.log | head -600 || true
+
+      - name: Package kernel artifact
+        if: always()
+        run: |
+          mkdir -p out
+          for k in dxb/fakeroot/System/Library/Kernels/kernel.*; do
+            [ -f "$k" ] && cp "$k" out/ && echo "artifact: $k"
+          done
+          ls -la out/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xnu-kernel
+          path: out/
