@@ -59,4 +59,14 @@ void
 __firehose_buffer_tracepoint_flush(firehose_tracepoint_t vat,
 		firehose_tracepoint_id_u vatid);
 
+// consumed by bsd/kern/subr_log.c — implemented in libfirehose_kernel.a
+firehose_buffer_t
+__firehose_buffer_create(size_t *size);
+
+bool
+__firehose_merge_updates(firehose_push_reply_t update);
+
+int
+__firehose_kernel_configuration_valid(uint8_t chunk_count, uint8_t io_pages);
+
 #endif /* __FIREHOSE_BUFFER_PRIVATE__ */
