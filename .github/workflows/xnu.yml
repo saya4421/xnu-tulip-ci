@@ -46,6 +46,11 @@ jobs:
           sudo chmod 755 /usr/local/libexec/availability.pl
           /usr/local/libexec/availability.pl --ios | tr ' ' '\n' | tail -3
           echo "FAKEROOT_DIR=" >> "$GITHUB_ENV"
+          # MIG/MIGCOM normally come from the fakeroot (itsvic's b43825bd);
+          # with an empty FAKEROOT_DIR the `find` returns nothing and the
+          # recipe degenerates to `DAPPLE ...`. Point them at xcrun tools.
+          echo "MIG=$(xcrun --sdk macosx --find mig)" >> "$GITHUB_ENV"
+          echo "MIGCOM=$(xcrun --sdk macosx --find migcom)" >> "$GITHUB_ENV"
 
       - name: Build kernel
         env:
