@@ -45,7 +45,7 @@ jobs:
             --jq .content | base64 -d | sudo tee /usr/local/libexec/availability.pl >/dev/null
           sudo chmod 755 /usr/local/libexec/availability.pl
           /usr/local/libexec/availability.pl --ios | tr ' ' '\n' | tail -3
-          echo "FAKEROOT_DIR=/usr/local" >> "$GITHUB_ENV"
+          echo "FAKEROOT_DIR=" >> "$GITHUB_ENV"
 
       - name: Build kernel
         env:
