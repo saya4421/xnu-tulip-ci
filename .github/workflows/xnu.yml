@@ -34,6 +34,19 @@ jobs:
           xcrun --sdk macosx --show-sdk-path
           which mig || echo "no mig in PATH"
 
+      - name: Install availability.pl
+        # bsd/sys/make_symbol_aliasing.sh requires $FAKEROOT_DIR/usr/local/
+        # libexec/availability.pl (normally staged by darwin-xnu-build).
+        # Plain-make path: vendor the standalone perl script from the
+        # AvailabilityVersions-121 tag and point FAKEROOT_DIR at it.
+        run: |
+          sudo mkdir -p /usr/local/libexec
+          gh api "repos/apple-oss-distributions/AvailabilityVersions/contents/availability.pl?ref=AvailabilityVersions-121" \
+            --jq .content | base64 -d | sudo tee /usr/local/libexec/availability.pl >/dev/null
+          sudo chmod 755 /usr/local/libexec/availability.pl
+          /usr/local/libexec/availability.pl --ios | tr ' ' '\n' | tail -3
+          echo "FAKEROOT_DIR=/usr/local" >> "$GITHUB_ENV"
+
       - name: Build kernel
         env:
           KERNEL_CONFIGS: ${{ env.KERNEL_CONFIG }}
