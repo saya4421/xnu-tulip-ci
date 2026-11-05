@@ -58,6 +58,10 @@ jobs:
           ARCH_CONFIGS: ARM64
           MACHINE_CONFIGS: TULIP
           MAKEFLAGS: -k
+          # Vanilla macOS SDK clang is newer than the Xcode Apple pinned
+          # this fork against; -Wcast-function-type-strict / -Wsuggest-override
+          # fire as errors on stock code. Not tulip bugs — relax Werror only.
+          BUILD_WERROR: 0
         run: |
           set -o pipefail
           make 2>&1 | tee build.log
